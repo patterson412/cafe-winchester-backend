@@ -1,0 +1,16 @@
+# Exclude application properties
+src/main/resources/application.properties
+
+# Ignore build files
+target/
+out/
+
+# Ignore IDE files
+.idea/
+*.iml
+
+# Ignore environment variables
+.env
+
+# Ignore log files
+*.log
