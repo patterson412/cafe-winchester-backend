@@ -16,20 +16,23 @@ public class User {
     @Column(name = "email")
     private String email;
 
-    @OneToOne(mappedBy = "address", cascade = CascadeType.ALL)
+    @OneToOne(mappedBy = "user", cascade = CascadeType.ALL)
     private Address address;
+
+    @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
+    private List<Favourites> favourites = new ArrayList<>();
 
     @OneToMany(mappedBy = "user", cascade = CascadeType.ALL, orphanRemoval = true, fetch = FetchType.LAZY)
     private List<Orders> orders = new ArrayList<>();
 
-
     public User() {
     }
 
-    public User(Long userId, String email, Address address, List<Orders> orders) {
+    public User(Long userId, String email, Address address, List<Favourites> favourites, List<Orders> orders) {
         this.userId = userId;
         this.email = email;
         this.address = address;
+        this.favourites = favourites;
         this.orders = orders;
     }
 
@@ -57,6 +60,14 @@ public class User {
         this.address = address;
     }
 
+    public List<Favourites> getFavourites() {
+        return favourites;
+    }
+
+    public void setFavourites(List<Favourites> favourites) {
+        this.favourites = favourites;
+    }
+
     public List<Orders> getOrders() {
         return orders;
     }
@@ -71,6 +82,7 @@ public class User {
                 "userId=" + userId +
                 ", email='" + email + '\'' +
                 ", address=" + address +
+                ", favourites=" + favourites +
                 ", orders=" + orders +
                 '}';
     }

@@ -15,7 +15,7 @@ public class Payments {
     @JoinColumn(name = "order_id", referencedColumnName = "id")
     private Orders order;
 
-    @Column(name = "payment_date", columnDefinition = "TIMESTAMP DEFAULT CURRENT_TIMESTAMP")
+    @Column(name = "payment_date", columnDefinition = "TIMESTAMP DEFAULT CURRENT_TIMESTAMP", updatable = false)
     private LocalDateTime paymentDate;
 
     public Payments() {
