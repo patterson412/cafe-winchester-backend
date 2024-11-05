@@ -1,11 +1,8 @@
 package com.projects.cafe_winchester_backend.entity;
 
 import jakarta.persistence.*;
-
-import java.sql.Timestamp;
 import java.time.LocalDateTime;
 import java.util.ArrayList;
-import java.util.Date;
 import java.util.List;
 
 @Entity
@@ -19,6 +16,11 @@ public class Orders {
     @ManyToOne
     @JoinColumn(name = "user_id", referencedColumnName = "id", nullable = false)
     private User user;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "status", nullable = false)
+    private OrderStatus status;
+
     @Column(name = "order_date", columnDefinition = "TIMESTAMP DEFAULT CURRENT_TIMESTAMP", updatable = false)
     private LocalDateTime orderDate;
 
@@ -28,9 +30,10 @@ public class Orders {
     public Orders() {
     }
 
-    public Orders(Long orderId, User user, LocalDateTime orderDate, List<OrderItems> orderItems) {
+    public Orders(Long orderId, User user, OrderStatus status, LocalDateTime orderDate, List<OrderItems> orderItems) {
         this.orderId = orderId;
         this.user = user;
+        this.status = status;
         this.orderDate = orderDate;
         this.orderItems = orderItems;
     }
@@ -49,6 +52,14 @@ public class Orders {
 
     public void setUser(User user) {
         this.user = user;
+    }
+
+    public OrderStatus getStatus() {
+        return status;
+    }
+
+    public void setStatus(OrderStatus status) {
+        this.status = status;
     }
 
     public LocalDateTime getOrderDate() {
@@ -72,6 +83,7 @@ public class Orders {
         return "Orders{" +
                 "orderId=" + orderId +
                 ", user=" + user +
+                ", status=" + status +
                 ", orderDate=" + orderDate +
                 ", orderItems=" + orderItems +
                 '}';

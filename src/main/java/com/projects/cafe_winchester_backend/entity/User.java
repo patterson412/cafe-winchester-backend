@@ -15,6 +15,8 @@ public class User {
 
     @Column(name = "email")
     private String email;
+    @Column(name = "phoneNumber")
+    private String phoneNumber;
 
     @OneToOne(mappedBy = "user", cascade = CascadeType.ALL)
     private Address address;
@@ -28,9 +30,10 @@ public class User {
     public User() {
     }
 
-    public User(Long userId, String email, Address address, List<Favourites> favourites, List<Orders> orders) {
+    public User(Long userId, String email, String phoneNumber, Address address, List<Favourites> favourites, List<Orders> orders) {
         this.userId = userId;
         this.email = email;
+        this.phoneNumber = phoneNumber;
         this.address = address;
         this.favourites = favourites;
         this.orders = orders;
@@ -76,11 +79,20 @@ public class User {
         this.orders = orders;
     }
 
+    public String getPhoneNumber() {
+        return phoneNumber;
+    }
+
+    public void setPhoneNumber(String phoneNumber) {
+        this.phoneNumber = phoneNumber;
+    }
+
     @Override
     public String toString() {
         return "User{" +
                 "userId=" + userId +
                 ", email='" + email + '\'' +
+                ", phoneNumber='" + phoneNumber + '\'' +
                 ", address=" + address +
                 ", favourites=" + favourites +
                 ", orders=" + orders +

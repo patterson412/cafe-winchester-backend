@@ -1,4 +1,4 @@
-use `rest`;
+use `cafe-winchester`;
 
 drop table if exists `roles`;
 drop table if exists `members`;
@@ -24,6 +24,6 @@ create table `roles` (
 
 insert into `roles`
 values
-    ('patterson', 'ROLE_EMPLOYEE'),
-    ('manager', 'ROLE_MANAGER');
+    ('patterson', 'ROLE_USER'),
+    ('manager', 'ROLE_ADMIN');
 
