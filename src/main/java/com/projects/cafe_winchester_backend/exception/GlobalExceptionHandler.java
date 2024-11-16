@@ -1,7 +1,9 @@
 package com.projects.cafe_winchester_backend.exception;
 
+import org.springframework.dao.PessimisticLockingFailureException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.ErrorResponse;
 import org.springframework.web.bind.MethodArgumentNotValidException;
 import org.springframework.web.bind.annotation.ControllerAdvice;
 import org.springframework.web.bind.annotation.ExceptionHandler;
@@ -26,6 +28,19 @@ public class GlobalExceptionHandler {
 
         return ResponseEntity
                 .status(HttpStatus.BAD_REQUEST)
+                .body(response);
+    }
+
+    @ExceptionHandler(PessimisticLockingFailureException.class)
+    public ResponseEntity<Map<String, Object>> handleLockTimeout(PessimisticLockingFailureException ex) {
+        Map<String, Object> response = new HashMap<>();
+
+        response.put("status", "error");
+        response.put("message", "Resource is currently locked. Please try again later.");
+        response.put("error", ex.getMessage());
+
+        return ResponseEntity
+                .status(HttpStatus.CONFLICT)
                 .body(response);
     }
 

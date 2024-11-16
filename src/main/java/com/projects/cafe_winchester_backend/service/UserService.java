@@ -14,8 +14,12 @@ import java.util.NoSuchElementException;
 @Service
 public class UserService {
 
-    @Autowired
-    private UserDao userDao;
+
+    private final UserDao userDao;
+
+    public UserService(UserDao userDao) {
+        this.userDao = userDao;
+    }
 
     // Create
     public User createUser(User user) {

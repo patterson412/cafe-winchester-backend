@@ -21,13 +21,17 @@ import java.io.IOException;
 
 @Component
 public class JwtRequestFilter extends OncePerRequestFilter {
-    @Autowired
-    private tokenUtil jwtTokenUtil;
 
-    @Autowired
-    private UserDetailsManager userDetailsManager;
+    private final tokenUtil jwtTokenUtil;
+
+    private final UserDetailsManager userDetailsManager;
 
     private static final String JWT_COOKIE_NAME = "jwt_token";
+
+    public JwtRequestFilter(tokenUtil jwtTokenUtil, UserDetailsManager userDetailsManager) {
+        this.jwtTokenUtil = jwtTokenUtil;
+        this.userDetailsManager = userDetailsManager;
+    }
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain) throws ServletException, IOException {

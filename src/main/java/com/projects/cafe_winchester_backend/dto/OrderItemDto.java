@@ -11,7 +11,7 @@ public class OrderItemDto {
     private Long menuItemId;
 
     @NotNull
-    @Min(1)  // Ensures quantity is at least 1
+    @Min(1)  // Ensures quantity is at least 1  // @Min(value = 1, message = "must be greater than or equal to one")
     private int quantity;
 
     @NotNull

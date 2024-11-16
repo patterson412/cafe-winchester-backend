@@ -15,6 +15,9 @@ public class MenuItem {
     @Column(name = "name", nullable = false)
     private String name;
 
+    @Column(name = "imageUrl", nullable = false)
+    private String imageUrl;
+
     @Column(name = "description", nullable = false)
     private String description;
 
@@ -27,9 +30,10 @@ public class MenuItem {
     public MenuItem() {
     }
 
-    public MenuItem(Long id, String name, String description, BigDecimal price, MenuCategory category) {
+    public MenuItem(Long id, String name, String imageUrl, String description, BigDecimal price, MenuCategory category) {
         this.id = id;
         this.name = name;
+        this.imageUrl = imageUrl;
         this.description = description;
         this.price = price;
         this.category = category;
@@ -73,6 +77,14 @@ public class MenuItem {
 
     public void setCategory(MenuCategory category) {
         this.category = category;
+    }
+
+    public String getImageUrl() {
+        return imageUrl;
+    }
+
+    public void setImageUrl(String imageUrl) {
+        this.imageUrl = imageUrl;
     }
 
     @Override

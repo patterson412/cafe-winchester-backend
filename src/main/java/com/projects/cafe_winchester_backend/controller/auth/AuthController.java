@@ -7,20 +7,20 @@ import com.projects.cafe_winchester_backend.entity.User;
 import com.projects.cafe_winchester_backend.service.UserManagementService;
 import com.projects.cafe_winchester_backend.service.UserService;
 import com.projects.cafe_winchester_backend.util.tokenUtil;
+import jakarta.servlet.http.Cookie;
+import jakarta.servlet.http.HttpServletRequest;
 import jakarta.transaction.Transactional;
 import jakarta.validation.Valid;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.*;
+import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.provisioning.UserDetailsManager;
-import org.springframework.web.bind.annotation.PostMapping;
-import org.springframework.web.bind.annotation.RequestBody;
-import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.bind.annotation.*;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -28,20 +28,23 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/auth")
 public class AuthController {
-    @Autowired
-    private AuthenticationManager authenticationManager;
+    private final AuthenticationManager authenticationManager;
+    private final tokenUtil jwtTokenUtil;
+    private final UserDetailsManager userDetailsManager;
+    private final UserManagementService userManagementService;
+    private final UserService userService;
 
-    @Autowired
-    private tokenUtil jwtTokenUtil;
-
-    @Autowired
-    private UserDetailsManager userDetailsManager;
-
-    @Autowired
-    private UserManagementService userManagementService;
-
-    @Autowired
-    private UserService userService;
+    public AuthController(AuthenticationManager authenticationManager,
+                          tokenUtil jwtTokenUtil,
+                          UserDetailsManager userDetailsManager,
+                          UserManagementService userManagementService,
+                          UserService userService) {
+        this.authenticationManager = authenticationManager;
+        this.jwtTokenUtil = jwtTokenUtil;
+        this.userDetailsManager = userDetailsManager;
+        this.userManagementService = userManagementService;
+        this.userService = userService;
+    }
 
 
     @PostMapping("/login")
@@ -75,8 +78,28 @@ public class AuthController {
                 .body(responseBody);
     }
 
+    @PostMapping("/logout")
+    public ResponseEntity<Map<String, String>> logout() {
+        ResponseCookie jwtCookie = ResponseCookie.from("jwt", "")   // Set to the same name as the cookie that was created to override it
+                .httpOnly(true)
+                .secure(true)
+                .path("/")
+                .maxAge(0)  // Causes the cookie to immediately expire
+                .sameSite("Strict")
+                .build();
+
+        Map<String, String> responseBody = new HashMap<>();
+        responseBody.put("status", "success");
+        responseBody.put("message", "Logged out successfully");
+
+        return ResponseEntity
+                .ok()
+                .header(HttpHeaders.SET_COOKIE, jwtCookie.toString())
+                .body(responseBody);
+    }
+
     @PostMapping("/register")
-    @Transactional
+    @Transactional // ensures that all database operations are treated as a single unit of work
     public ResponseEntity<Map<String, Object>> register(@Valid @RequestBody RegisterFormDto registerFormDto) throws Exception {
         // Check if email exists
         if (userService.existsByEmail(registerFormDto.getEmail())) {

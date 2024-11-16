@@ -41,11 +41,12 @@ public class securityConfig {
 
                         .requestMatchers("/api/products/update/*").hasRole("ADMIN")
 
-                        .requestMatchers(HttpMethod.GET,"/api/products/favourites").hasAnyRole("USER", "ADMIN")
-                        .requestMatchers("/api/products/update/favourites/*").hasAnyRole("USER", "ADMIN")
+                        .requestMatchers(HttpMethod.POST,"/api/shop/orders/neworder").hasAnyRole("USER", "ADMIN")
 
-                        .requestMatchers(HttpMethod.GET,"/api/shop/data").hasRole("ADMIN")
-                        .requestMatchers("/api/shop/data/**").hasRole("ADMIN")
+                        .requestMatchers(HttpMethod.GET,"/api/shop/user/favourites").hasAnyRole("USER", "ADMIN")
+                        .requestMatchers(HttpMethod.POST,"/api/shop/user/favourites/*").hasAnyRole("USER", "ADMIN")
+
+                        .requestMatchers("/api/manage/data/**").hasRole("ADMIN")
         )
                 .exceptionHandling(ex -> ex.authenticationEntryPoint(jwtAuthenticationEntryPoint)) // Use fallback custom entry point for auth errors if any exists after processing through all filters
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)); // Use stateless session policy for JWT
@@ -59,7 +60,7 @@ public class securityConfig {
 
     @Bean
     public PasswordEncoder passwordEncoder() {
-        return new BCryptPasswordEncoder(); // Use BCrypt for password hashing
+        return new BCryptPasswordEncoder(); // Use BCrypt for password hashing // By default uses 10 rounds, can change by passing the number as parameter to the BCryptPasswordEncoder(12)
     }
 
     @Bean
