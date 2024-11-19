@@ -3,14 +3,19 @@ package com.projects.cafe_winchester_backend.controller.customer;
 import com.projects.cafe_winchester_backend.dto.OrderDto;
 import com.projects.cafe_winchester_backend.dto.OrderItemDto;
 import com.projects.cafe_winchester_backend.entity.*;
+import com.projects.cafe_winchester_backend.service.S3Service;
 import com.projects.cafe_winchester_backend.service.ShopService;
 import com.projects.cafe_winchester_backend.service.UserService;
+import com.projects.cafe_winchester_backend.util.tokenUtil;
 import jakarta.validation.Valid;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 import java.math.BigDecimal;
@@ -30,10 +35,15 @@ public class CustomerController {
 
     private ShopService shopService;
 
-    public CustomerController(UserService userService, SimpMessagingTemplate simpMessagingTemplate, ShopService shopService) {
+    private tokenUtil jwtTokenUtil;
+    private S3Service s3Service;
+
+    public CustomerController(UserService userService, SimpMessagingTemplate simpMessagingTemplate, ShopService shopService, tokenUtil jwtTokenUtil, S3Service s3Service) {
         this.userService = userService;
         this.simpMessagingTemplate = simpMessagingTemplate;
         this.shopService = shopService;
+        this.jwtTokenUtil = jwtTokenUtil;
+        this.s3Service = s3Service;
     }
 
     /*
@@ -89,8 +99,11 @@ public class CustomerController {
 
         simpMessagingTemplate.convertAndSend("/topic/orders", savedOrder);  // Sends to Admin Subscribers
 
+        ResponseCookie jwtCookie = jwtTokenUtil.refreshToken((UserDetails) authentication.getPrincipal());
+
         return ResponseEntity
                 .ok()
+                .header(HttpHeaders.SET_COOKIE, jwtCookie.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(responseBody);
 
@@ -116,7 +129,7 @@ public class CustomerController {
             simplifiedItem.put("name", fav.getMenuItem().getName());
             simplifiedItem.put("description", fav.getMenuItem().getDescription());
             simplifiedItem.put("price", fav.getMenuItem().getPrice());
-            simplifiedItem.put("imageUrl", fav.getMenuItem().getImageUrl());
+            simplifiedItem.put("imageUrl", s3Service.generatePreSignedUrl(fav.getMenuItem().getImageUrl()));
 
             // Add simplified category with only id and name
             Map<String, Object> simplifiedCategory = new HashMap<>();
@@ -131,15 +144,18 @@ public class CustomerController {
         Map<String, Object> responseBody = new HashMap<>();
         responseBody.put("favourites", simplifiedMenuItems);
 
+        ResponseCookie jwtCookie = jwtTokenUtil.refreshToken((UserDetails) authentication.getPrincipal());
+
         return ResponseEntity
                 .ok()
+                .header(HttpHeaders.SET_COOKIE, jwtCookie.toString())
                 .contentType(MediaType.APPLICATION_JSON)
                 .body(responseBody);
 
     }
 
     @PostMapping("/user/favourites/{id}")
-    public ResponseEntity<?> addFavourite(@PathVariable("id") Long menuItemId) {
+    public ResponseEntity<Map<String, String>> addFavourite(@PathVariable("id") Long menuItemId) {
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         String currentPrincipalName = authentication.getName();
 
@@ -154,8 +170,12 @@ public class CustomerController {
         responseBody.put("status", "success");
         responseBody.put("message", "Added Item to Favourites successfully");
 
+        ResponseCookie jwtCookie = jwtTokenUtil.refreshToken((UserDetails) authentication.getPrincipal());
+
         return ResponseEntity
                 .ok()
+                .header(HttpHeaders.SET_COOKIE, jwtCookie.toString())
+                .contentType(MediaType.APPLICATION_JSON)
                 .body(responseBody);
 
     }

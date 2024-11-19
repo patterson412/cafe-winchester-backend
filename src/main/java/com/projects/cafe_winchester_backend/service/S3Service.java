@@ -2,13 +2,22 @@ package com.projects.cafe_winchester_backend.service;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
+import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
+import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
+import software.amazon.awssdk.regions.Region;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.*;
 import software.amazon.awssdk.core.sync.RequestBody;
+import software.amazon.awssdk.services.s3.presigner.S3Presigner;
+import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
+import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequest;
+import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequest;
 
 import java.io.IOException;
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -18,12 +27,16 @@ public class S3Service {
     private final String bucketName;
     private final String region;
 
+    private final S3Presigner s3Presigner;
+
     public S3Service(S3Client s3Client,
+                     S3Presigner s3Presigner,
                      @Value("${aws.s3.bucket}") String bucketName,
                      @Value("${aws.s3.region}") String region) {
         this.s3Client = s3Client;
         this.bucketName = bucketName;
         this.region = region;
+        this.s3Presigner = s3Presigner;
     }
 
 
@@ -71,22 +84,36 @@ public class S3Service {
                     RequestBody.fromInputStream(file.getInputStream(),
                             file.getSize())); // AWS SDK can pre-allocate resources
 
-            return String.format("https://%s.s3.%s.amazonaws.com/%s",
-                    bucketName,
-                    region,
-                    fileName);
+            return fileName;
         } catch (IOException e) {
             throw new RuntimeException("Failed to upload file to S3: " + e.getMessage(), e);
         }
     }
 
-    public void deleteFile(String fileUrl) {
-        if (fileUrl == null || fileUrl.trim().isEmpty()) {
-            throw new IllegalArgumentException("File URL cannot be null or empty");
+    public String generatePreSignedUrl(String objectKey) {
+
+        GetObjectRequest objectRequest = GetObjectRequest.builder()
+                .bucket(bucketName)
+                .key(objectKey)
+                .build();
+
+        GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
+                .signatureDuration(Duration.ofMinutes(10))  // The URL will expire in 10 minutes.
+                .getObjectRequest(objectRequest)
+                .build();
+
+        PresignedGetObjectRequest presignedRequest = s3Presigner.presignGetObject(presignRequest);
+
+        return presignedRequest.url().toExternalForm();
+
+    }
+
+    public void deleteFile(String key) {
+        if (key == null || key.trim().isEmpty()) {
+            throw new IllegalArgumentException("File key cannot be null or empty");
         }
 
         try {
-            String key = extractKeyFromUrl(fileUrl);
 
             // Check if file exists before deleting, as this returns object metadata without downloading the object
             HeadObjectRequest headObjectRequest = HeadObjectRequest.builder()
@@ -112,25 +139,24 @@ public class S3Service {
         }
     }
 
-    public void deleteMultipleFiles(List<String> fileUrls) {
-        if (fileUrls == null || fileUrls.isEmpty()) {
+    public void deleteMultipleFiles(List<String> fileKeys) {
+        if (fileKeys == null || fileKeys.isEmpty()) {
             throw new IllegalArgumentException("File URLs list cannot be null or empty");
         }
 
         List<ObjectIdentifier> keys = new ArrayList<>();
-        List<String> failedUrls = new ArrayList<>();
+        List<String> failedKeys = new ArrayList<>();
 
-        for (String url : fileUrls) {
+        for (String key : fileKeys) {
             try {
-                String key = extractKeyFromUrl(url);
                 keys.add(ObjectIdentifier.builder().key(key).build());
             } catch (Exception e) {
-                failedUrls.add(url);
+                failedKeys.add(key);
             }
         }
 
-        if (!failedUrls.isEmpty()) {
-            throw new IllegalArgumentException("Invalid URLs: " + String.join(", ", failedUrls));
+        if (!failedKeys.isEmpty()) {
+            throw new IllegalArgumentException("Invalid URLs: " + String.join(", ", failedKeys));
         }
 
         try {
@@ -153,6 +179,76 @@ public class S3Service {
         }
     }
 
+    public void cleanupBucketFolders() {
+        try {
+            // List all image type folders we want to clean
+            List<String> foldersToClean = new ArrayList<>();
+            for (ImageType imageType : ImageType.values()) {
+                foldersToClean.add(imageType.getPath());
+            }
+
+            for (String folder : foldersToClean) {
+                // List objects in the folder
+                ListObjectsV2Request listRequest = ListObjectsV2Request.builder()
+                        .bucket(bucketName)
+                        .prefix(folder)
+                        .build();
+
+                ListObjectsV2Response listResponse;
+                do {
+                    listResponse = s3Client.listObjectsV2(listRequest);
+
+                    if (!listResponse.contents().isEmpty()) {
+                        // Prepare batch delete request
+                        List<ObjectIdentifier> objectsToDelete = listResponse.contents().stream()
+                                .map(s3Object -> ObjectIdentifier.builder()
+                                        .key(s3Object.key())
+                                        .build())
+                                .toList();
+
+                        // Delete the batch of objects
+                        DeleteObjectsRequest deleteRequest = DeleteObjectsRequest.builder()
+                                .bucket(bucketName)
+                                .delete(Delete.builder()
+                                        .objects(objectsToDelete)
+                                        .quiet(false) // Set to true if deletion details are not needed
+                                        .build())
+                                .build();
+
+                        DeleteObjectsResponse deleteResponse = s3Client.deleteObjects(deleteRequest);
+
+                        // Check for errors
+                        if (!deleteResponse.errors().isEmpty()) {
+                            List<String> errorMessages = deleteResponse.errors().stream()
+                                    .map(error -> error.key() + ": " + error.message())
+                                    .toList();
+                            System.err.println("Failed to delete some objects in folder " + folder + ": "
+                                    + String.join(", ", errorMessages));
+                        } else {
+                            System.out.println("Successfully deleted " + objectsToDelete.size()
+                                    + " objects from folder: " + folder);
+                        }
+                    } else {
+                        System.out.println("No objects found in folder: " + folder);
+                    }
+
+                    // Update the list request with the continuation token to get the next batch
+                    listRequest = ListObjectsV2Request.builder()
+                            .bucket(bucketName)
+                            .prefix(folder)
+                            .continuationToken(listResponse.nextContinuationToken())    // We do this because the objects are returned paginated, hence we check if there are more objects using the token AWS sends in the response if there are more objects, or else the token is null
+                            .build();
+
+                } while (listResponse.isTruncated()); // Continue if there are more objects.
+            }
+
+            System.out.println("Bucket cleanup completed successfully");
+
+        } catch (S3Exception e) {
+            throw new RuntimeException("Failed to cleanup S3 bucket folders: " + e.getMessage(), e);
+        }
+    }
+
     private String generateUniqueFileName(String originalFilename) {
         if (originalFilename == null) {
             return System.currentTimeMillis() + "_file";
@@ -169,19 +265,5 @@ public class S3Service {
 
         Replaces these special characters with underscore _
          */
-    }
-
-    private String extractKeyFromUrl(String fileUrl) {
-        // URL format: https://bucket-name.s3.region.amazonaws.com/folder/filename
-        try {
-            // Remove the base URL part to get the key
-            String baseUrl = String.format("https://%s.s3.%s.amazonaws.com/", bucketName, region);
-            if (!fileUrl.startsWith(baseUrl)) {
-                throw new IllegalArgumentException("Invalid S3 URL format");
-            }
-            return fileUrl.substring(baseUrl.length());
-        } catch (Exception e) {
-            throw new IllegalArgumentException("Failed to extract key from URL: " + e.getMessage());
-        }
     }
 }

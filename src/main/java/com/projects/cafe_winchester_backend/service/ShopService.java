@@ -103,7 +103,9 @@ public class ShopService {
                                     Map<String, Object> itemDetails = new HashMap<>();
                                     itemDetails.put("id", item.getId());
                                     itemDetails.put("name", item.getName());
-                                    itemDetails.put("imageUrl", item.getImageUrl());
+                                    itemDetails.put("imageUrl", item.getImageUrl() != null ?
+                                            s3Service.generatePreSignedUrl(item.getImageUrl()) :
+                                            null);
                                     itemDetails.put("description", item.getDescription());
                                     itemDetails.put("price", item.getPrice());
                                     itemDetails.put("categoryId", item.getCategory().getId());

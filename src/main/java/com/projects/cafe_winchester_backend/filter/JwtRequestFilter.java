@@ -26,7 +26,7 @@ public class JwtRequestFilter extends OncePerRequestFilter {
 
     private final UserDetailsManager userDetailsManager;
 
-    private static final String JWT_COOKIE_NAME = "jwt_token";
+    private static final String JWT_COOKIE_NAME = "jwt";
 
     public JwtRequestFilter(tokenUtil jwtTokenUtil, UserDetailsManager userDetailsManager) {
         this.jwtTokenUtil = jwtTokenUtil;

@@ -10,8 +10,6 @@ public class RegisterFormDto {
     @NotNull
     private String phoneNumber;
     @NotNull
-    private String email;
-    @NotNull
     private double latitude;
     @NotNull
     private double longitude;
@@ -19,11 +17,10 @@ public class RegisterFormDto {
     public RegisterFormDto() {
     }
 
-    public RegisterFormDto(String username, String password, String phoneNumber, String email, double latitude, double longitude) {
+    public RegisterFormDto(String username, String password, String phoneNumber, double latitude, double longitude) {
         this.username = username;
         this.password = password;
         this.phoneNumber = phoneNumber;
-        this.email = email;
         this.latitude = latitude;
         this.longitude = longitude;
     }
@@ -52,14 +49,6 @@ public class RegisterFormDto {
         this.phoneNumber = phoneNumber;
     }
 
-    public String getEmail() {
-        return email;
-    }
-
-    public void setEmail(String email) {
-        this.email = email;
-    }
-
     public double getLatitude() {
         return latitude;
     }
@@ -82,7 +71,6 @@ public class RegisterFormDto {
                 "username='" + username + '\'' +
                 ", password='" + password + '\'' +
                 ", phoneNumber='" + phoneNumber + '\'' +
-                ", email='" + email + '\'' +
                 ", latitude=" + latitude +
                 ", longitude=" + longitude +
                 '}';

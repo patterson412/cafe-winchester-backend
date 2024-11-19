@@ -56,9 +56,9 @@ public class AuthController {
         // Create cookie
         ResponseCookie jwtCookie = ResponseCookie.from("jwt", token)
                 .httpOnly(true)
-                .secure(true)
+                .secure(false)   // Should be set to true in production to use https
                 .path("/")
-                .maxAge(24 * 60 * 60) // 24 hours in seconds
+                .maxAge(7 * 60 * 60) // 7 hours in seconds
                 .sameSite("Strict")
                 .build();
 
@@ -82,7 +82,7 @@ public class AuthController {
     public ResponseEntity<Map<String, String>> logout() {
         ResponseCookie jwtCookie = ResponseCookie.from("jwt", "")   // Set to the same name as the cookie that was created to override it
                 .httpOnly(true)
-                .secure(true)
+                .secure(false)
                 .path("/")
                 .maxAge(0)  // Causes the cookie to immediately expire
                 .sameSite("Strict")
@@ -102,16 +102,16 @@ public class AuthController {
     @Transactional // ensures that all database operations are treated as a single unit of work
     public ResponseEntity<Map<String, Object>> register(@Valid @RequestBody RegisterFormDto registerFormDto) throws Exception {
         // Check if email exists
-        if (userService.existsByEmail(registerFormDto.getEmail())) {
-            throw new Exception("Email already registered");
+        if (userService.existsByEmail(registerFormDto.getUsername())) {
+            throw new Exception("Email username already registered");
         }
 
         // Create user for spring authentication/authorization
-        userManagementService.createUser(registerFormDto.getUsername(), registerFormDto.getPassword(), "ROLE_USER");
+        userManagementService.createUser(registerFormDto.getUsername(), registerFormDto.getPassword(), "USER");
 
         // Create user entity
         User newUser = new User();
-        newUser.setEmail(registerFormDto.getEmail());
+        newUser.setEmail(registerFormDto.getUsername());
         newUser.setPhoneNumber(registerFormDto.getPhoneNumber());
 
         // Create and set up address

@@ -12,8 +12,8 @@ create table `members` (
 
 insert into `members`
 values
-    ('patterson', '{bcrypt}$2a$10$9YB/i7tf/Ge9E3NPNVBqj.WCpZF82OTUAY1HCKOpyaChtDDyLlwY.', 1),
-    ('manager', '{bcrypt}$2a$10$9YB/i7tf/Ge9E3NPNVBqj.WCpZF82OTUAY1HCKOpyaChtDDyLlwY.', 1);
+    ('patterson.leon1960@gmail.com', '$2a$10$4kRjK6LEv/gRjSUBBkhHBeoDqav4Nm/fmIK5usGD.WaaLLiu3.7ze', 1),
+    ('manager@example.com', '$2a$10$4kRjK6LEv/gRjSUBBkhHBeoDqav4Nm/fmIK5usGD.WaaLLiu3.7ze', 1);
 
 create table `roles` (
     `user_id` varchar(50) not null,
@@ -24,6 +24,6 @@ create table `roles` (
 
 insert into `roles`
 values
-    ('patterson', 'ROLE_USER'),
-    ('manager', 'ROLE_ADMIN');
+    ('patterson.leon1960@gmail.com', 'ROLE_USER'),
+    ('manager@example.com', 'ROLE_ADMIN');
 

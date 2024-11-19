@@ -14,3 +14,6 @@ out/
 
 # Ignore log files
 *.log
+
+# Ignore MacOS related files
+.DS_Store

@@ -9,6 +9,7 @@ import jakarta.annotation.PostConstruct;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.http.ResponseCookie;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
 
@@ -19,7 +20,7 @@ import java.util.Map;
 @Component
 public class tokenUtil {
     private static final Logger logger = LoggerFactory.getLogger(tokenUtil.class);
-    public static final long JWT_TOKEN_VALIDITY = 5 * 60 * 60; // 5 hours
+    public static final long JWT_TOKEN_VALIDITY = 7 * 60 * 60; // 7 hours
 
     @Value("${jwt.secret}")
     private String secret;
@@ -36,7 +37,8 @@ public class tokenUtil {
     }
 
     public Date getExpirationDateFromToken(String token) {
-        return new Date((Long) getClaimFromToken(token, "exp") * 1000);
+        Number expiration = (Number) getClaimFromToken(token, "exp");
+        return new Date(expiration.longValue() * 1000);
     }
 
     public Object getClaimFromToken(String token, String claimName) {
@@ -85,5 +87,16 @@ public class tokenUtil {
             logger.error("Invalid JWT token", e);
             return false;
         }
+    }
+
+    public ResponseCookie refreshToken(UserDetails userDetails) {
+        String token = generateToken(userDetails);
+        return ResponseCookie.from("jwt", token)
+                .httpOnly(true)
+                .secure(false)  // Set to true in production to use https
+                .path("/")
+                .maxAge(7 * 60 * 60) // 7 hours in seconds
+                .sameSite("Strict")
+                .build();
     }
 }

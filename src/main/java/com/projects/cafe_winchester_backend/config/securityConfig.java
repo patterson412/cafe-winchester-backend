@@ -34,20 +34,32 @@ public class securityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http.authorizeHttpRequests(auth ->
-                auth
-                        .requestMatchers("/api/auth/**").permitAll()
-                        .requestMatchers(HttpMethod.GET,"/api/products").permitAll()
-                        .requestMatchers(HttpMethod.GET,"/api/products/*").permitAll()
+                        auth
+                                // Public endpoints - Auth Controller
+                                .requestMatchers("/api/auth/**").permitAll()
 
-                        .requestMatchers("/api/products/update/*").hasRole("ADMIN")
+                                // Customer endpoints - CustomerController
+                                .requestMatchers(HttpMethod.POST, "/api/shop/orders/neworder").hasAnyRole("USER", "ADMIN")
+                                .requestMatchers(HttpMethod.GET, "/api/shop/user/favourites").hasAnyRole("USER", "ADMIN")
+                                .requestMatchers(HttpMethod.POST, "/api/shop/user/favourites/*").hasAnyRole("USER", "ADMIN")
 
-                        .requestMatchers(HttpMethod.POST,"/api/shop/orders/neworder").hasAnyRole("USER", "ADMIN")
+                                // Admin endpoints - AdminController
+                                .requestMatchers(HttpMethod.PUT, "/api/manage/data/menuitem/*").hasRole("ADMIN")
+                                .requestMatchers(HttpMethod.GET, "/api/manage/data/currentorders").hasRole("ADMIN")
+                                .requestMatchers(HttpMethod.GET, "/api/manage/data/allorders").hasRole("ADMIN")
+                                .requestMatchers(HttpMethod.GET, "/api/manage/data/menucategories").hasRole("ADMIN")
+                                .requestMatchers(HttpMethod.POST, "/api/manage/data/menuitems").hasRole("ADMIN")
+                                .requestMatchers(HttpMethod.POST, "/api/manage/data/menucategories").hasRole("ADMIN")
+                                .requestMatchers(HttpMethod.POST, "/api/manage/data/orders/accept/*").hasRole("ADMIN")
+                                .requestMatchers(HttpMethod.POST, "/api/manage/data/orders/decline/*").hasRole("ADMIN")
+                                .requestMatchers(HttpMethod.POST, "/api/manage/data/orders/complete/*").hasRole("ADMIN")
 
-                        .requestMatchers(HttpMethod.GET,"/api/shop/user/favourites").hasAnyRole("USER", "ADMIN")
-                        .requestMatchers(HttpMethod.POST,"/api/shop/user/favourites/*").hasAnyRole("USER", "ADMIN")
+                                // Shop endpoints - ShopController
+                                .requestMatchers(HttpMethod.GET, "/api/products").permitAll()
 
-                        .requestMatchers("/api/manage/data/**").hasRole("ADMIN")
-        )
+                                // Any other request needs authentication
+                                .anyRequest().authenticated()
+                )
                 .exceptionHandling(ex -> ex.authenticationEntryPoint(jwtAuthenticationEntryPoint)) // Use fallback custom entry point for auth errors if any exists after processing through all filters
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS)); // Use stateless session policy for JWT
 
