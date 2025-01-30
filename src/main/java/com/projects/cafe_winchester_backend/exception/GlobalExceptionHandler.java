@@ -31,19 +31,6 @@ public class GlobalExceptionHandler {
                 .body(response);
     }
 
-    @ExceptionHandler(PessimisticLockingFailureException.class)
-    public ResponseEntity<Map<String, Object>> handleLockTimeout(PessimisticLockingFailureException ex) {
-        Map<String, Object> response = new HashMap<>();
-
-        response.put("status", "error");
-        response.put("message", "Resource is currently locked. Please try again later.");
-        response.put("error", ex.getMessage());
-
-        return ResponseEntity
-                .status(HttpStatus.CONFLICT)
-                .body(response);
-    }
-
 
     @ExceptionHandler(Exception.class)
     public ResponseEntity<Map<String, Object>> handleGlobalException(Exception ex) {

@@ -11,14 +11,14 @@ public class Role {
     @ManyToOne
     @MapsId("userId") // Reuses the userId from the composite key through the RoleId class.  ← Maps to RoleId.userId field. Avoids duplicating user_id column
     @JoinColumn(name = "user_id", referencedColumnName = "user_id")
-    private Member member;
+    private User user;
 
     public Role() {
     }
 
-    public Role(RoleId id, Member member) {
+    public Role(RoleId id, User user) {
         this.id = id;
-        this.member = member;
+        this.user = user;
     }
 
     public RoleId getId() {
@@ -29,19 +29,11 @@ public class Role {
         this.id = id;
     }
 
-    public Member getMember() {
-        return member;
+    public User getUser() {
+        return user;
     }
 
-    public void setMember(Member member) {
-        this.member = member;
-    }
-
-    @Override
-    public String toString() {
-        return "Role{" +
-                "id=" + id +
-                ", memberId=" + (member != null ? member.getUserId() : null) +
-                '}';
+    public void setUser(User user) {
+        this.user = user;
     }
 }

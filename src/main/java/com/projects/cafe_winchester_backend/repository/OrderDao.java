@@ -14,7 +14,7 @@ import java.util.Optional;
 
 @Repository
 public interface OrderDao extends JpaRepository<Orders, Long> {
-    Optional<Orders> findFirstByUserUserIdOrderByOrderDateDesc(Long userId);
+    Optional<Orders> findFirstByUserUserIdOrderByOrderDateDesc(String userId);
 
     /* SQL Equivalent
     SELECT * FROM Orders

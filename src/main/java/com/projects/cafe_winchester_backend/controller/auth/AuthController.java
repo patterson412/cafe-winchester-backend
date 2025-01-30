@@ -4,16 +4,11 @@ import com.projects.cafe_winchester_backend.dto.LoginFormDto;
 import com.projects.cafe_winchester_backend.dto.RegisterFormDto;
 import com.projects.cafe_winchester_backend.entity.Address;
 import com.projects.cafe_winchester_backend.entity.User;
-import com.projects.cafe_winchester_backend.service.UserManagementService;
 import com.projects.cafe_winchester_backend.service.UserService;
 import com.projects.cafe_winchester_backend.util.tokenUtil;
-import jakarta.servlet.http.Cookie;
-import jakarta.servlet.http.HttpServletRequest;
 import jakarta.transaction.Transactional;
 import jakarta.validation.Valid;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.*;
-import org.springframework.messaging.simp.SimpMessagingTemplate;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.DisabledException;
@@ -31,21 +26,14 @@ public class AuthController {
     private final AuthenticationManager authenticationManager;
     private final tokenUtil jwtTokenUtil;
     private final UserDetailsManager userDetailsManager;
-    private final UserManagementService userManagementService;
     private final UserService userService;
 
-    public AuthController(AuthenticationManager authenticationManager,
-                          tokenUtil jwtTokenUtil,
-                          UserDetailsManager userDetailsManager,
-                          UserManagementService userManagementService,
-                          UserService userService) {
+    public AuthController(AuthenticationManager authenticationManager, tokenUtil jwtTokenUtil, UserDetailsManager userDetailsManager, UserService userService) {
         this.authenticationManager = authenticationManager;
         this.jwtTokenUtil = jwtTokenUtil;
         this.userDetailsManager = userDetailsManager;
-        this.userManagementService = userManagementService;
         this.userService = userService;
     }
-
 
     @PostMapping("/login")
     public ResponseEntity<Map<String, String>> login(@Valid @RequestBody LoginFormDto loginFormDto) throws Exception {
@@ -53,48 +41,13 @@ public class AuthController {
         final UserDetails userDetails = userDetailsManager.loadUserByUsername(loginFormDto.getUsername());
         final String token = jwtTokenUtil.generateToken(userDetails);
 
-        // Create cookie
-        ResponseCookie jwtCookie = ResponseCookie.from("jwt", token)
-                .httpOnly(true)
-                .secure(false)   // Should be set to true in production to use https
-                .path("/")
-                .maxAge(7 * 60 * 60) // 7 hours in seconds
-                .sameSite("Strict")
-                .build();
-
         Map<String, String> responseBody = new HashMap<>();
-        responseBody.put("status", "success");
-        responseBody.put("message", "Login successful");
         responseBody.put("username", userDetails.getUsername());
+        responseBody.put("accessToken", token);
 
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        headers.add(HttpHeaders.SET_COOKIE, jwtCookie.toString());
-
-
-        return ResponseEntity
-                .status(HttpStatus.OK)
-                .headers(headers)
-                .body(responseBody);
-    }
-
-    @PostMapping("/logout")
-    public ResponseEntity<Map<String, String>> logout() {
-        ResponseCookie jwtCookie = ResponseCookie.from("jwt", "")   // Set to the same name as the cookie that was created to override it
-                .httpOnly(true)
-                .secure(false)
-                .path("/")
-                .maxAge(0)  // Causes the cookie to immediately expire
-                .sameSite("Strict")
-                .build();
-
-        Map<String, String> responseBody = new HashMap<>();
-        responseBody.put("status", "success");
-        responseBody.put("message", "Logged out successfully");
 
         return ResponseEntity
                 .ok()
-                .header(HttpHeaders.SET_COOKIE, jwtCookie.toString())
                 .body(responseBody);
     }
 
@@ -107,10 +60,9 @@ public class AuthController {
         }
 
         // Create user for spring authentication/authorization
-        userManagementService.createUser(registerFormDto.getUsername(), registerFormDto.getPassword(), "USER");
+        userService.createUser(registerFormDto.getUsername(), registerFormDto.getPassword(), new String[]{"USER"});
 
-        // Create user entity
-        User newUser = new User();
+        User newUser = userService.getUserById(registerFormDto.getUsername());
         newUser.setEmail(registerFormDto.getUsername());
         newUser.setPhoneNumber(registerFormDto.getPhoneNumber());
 
@@ -124,7 +76,7 @@ public class AuthController {
         newUser.setAddress(address);
 
         // Save the user
-        User savedUser = userService.createUser(newUser);
+        User savedUser = userService.saveUser(newUser);
 
         Map<String, Object> responseBody = new HashMap<>();
         responseBody.put("status", "success");

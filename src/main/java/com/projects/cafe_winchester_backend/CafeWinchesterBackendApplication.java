@@ -10,9 +10,7 @@ import com.projects.cafe_winchester_backend.dto.AddMenuItemDto;
 import com.projects.cafe_winchester_backend.entity.User;
 import com.projects.cafe_winchester_backend.service.S3Service;
 import com.projects.cafe_winchester_backend.service.ShopService;
-import com.projects.cafe_winchester_backend.service.UserManagementService;
 import com.projects.cafe_winchester_backend.service.UserService;
-import jakarta.annotation.PreDestroy;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
@@ -20,12 +18,10 @@ import org.springframework.boot.CommandLineRunner;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.io.ClassPathResource;
 import org.springframework.core.io.Resource;
-import org.springframework.core.io.FileSystemResource;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.multipart.MultipartFile;
 import org.springframework.mock.web.MockMultipartFile;
 
-import java.io.File;
 import java.io.IOException;
 import java.math.BigDecimal;
 import java.nio.file.Files;
@@ -37,17 +33,10 @@ public class CafeWinchesterBackendApplication {
 	@Autowired
 	private ShopService shopService;
 
-	@Autowired
-	private S3Service s3Service;
 
 	@Autowired
 	private UserService userService;
 
-	@Autowired
-	private UserManagementService userManagementService;
-
-	@Autowired
-	private PasswordEncoder bcryptPasswordEncoder;
 
 	public static void main(String[] args) {
 		SpringApplication.run(CafeWinchesterBackendApplication.class, args);
@@ -59,7 +48,9 @@ public class CafeWinchesterBackendApplication {
 
 			// Setting up the Users and admins for testing purposes
 
-			User newUser = new User();
+			userService.createUser("patterson.leon1960@gmail.com", "user123", new String[]{"USER"});	// For Spring Security, User 1
+
+			User newUser = userService.getUserById("patterson.leon1960@gmail.com");
 
 			newUser.setEmail("patterson.leon1960@gmail.com");
 			newUser.setPhoneNumber("0766411334");
@@ -71,11 +62,12 @@ public class CafeWinchesterBackendApplication {
 			address.setUser(newUser);
 			newUser.setAddress(address);
 
-			User savedUser = userService.createUser(newUser);	// Saving to User to users table for use in the application. (Not for Spring Security)
+			userService.saveUser(newUser);
 
-			userManagementService.createUser(savedUser.getEmail(), "user123", "USER");	// For Spring Security, User 1
 
-			User newUser2 = new User();
+			userService.createUser("manager@example.com", "admin123", new String[]{"ADMIN"}); // For Spring Security, Admin 1
+
+			User newUser2 = userService.getUserById("manager@example.com");
 
 			newUser2.setEmail("manager@example.com");
 			newUser2.setPhoneNumber("0721513314");
@@ -87,9 +79,8 @@ public class CafeWinchesterBackendApplication {
 			address2.setUser(newUser2);
 			newUser2.setAddress(address2);
 
-			User savedUser2 = userService.createUser(newUser2);
+			userService.saveUser(newUser2);
 
-			userManagementService.createUser(savedUser2.getEmail(), "admin123", "ADMIN"); // For Spring Security, Admin 1
 
 			// Adding sample items
 
@@ -300,11 +291,5 @@ public class CafeWinchesterBackendApplication {
 				System.out.println("Unexpected error occurred: " + e.getMessage());
 			}
 		};
-	}
-
-
-	@PreDestroy
-	public void cleanUpAws() {
-		s3Service.cleanupBucketFolders();
 	}
 }

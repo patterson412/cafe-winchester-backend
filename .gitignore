@@ -17,3 +17,10 @@ out/
 
 # Ignore MacOS related files
 .DS_Store
+
+# Ignore private key files
+pk-APKAU6GDZ6LS6N3OZFX2.der
+pk-APKAU6GDZ6LS6N3OZFX2.pem
+
+# Ignore the public key file
+rsa-APKAU6GDZ6LS6N3OZFX2.pem

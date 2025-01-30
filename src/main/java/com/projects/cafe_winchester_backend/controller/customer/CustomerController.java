@@ -7,6 +7,7 @@ import com.projects.cafe_winchester_backend.service.S3Service;
 import com.projects.cafe_winchester_backend.service.ShopService;
 import com.projects.cafe_winchester_backend.service.UserService;
 import com.projects.cafe_winchester_backend.util.tokenUtil;
+import jakarta.transaction.Transactional;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
@@ -67,11 +68,11 @@ public class CustomerController {
 
 
     @PostMapping("/orders/neworder")
+    @Transactional
     public ResponseEntity<Map<String, Object>> addOrder(@Valid @RequestBody OrderDto orderDto) {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        String currentPrincipalName = authentication.getName(); // here essentially the getUsername() method is called
+        UserDetails currentUser = (UserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
 
-        User user = userService.getUserByEmail(currentPrincipalName);
+        User user = userService.getUserById(currentUser.getUsername());
 
         Orders newOrder = new Orders();
         List<OrderItems> orderItemsList = new ArrayList<>();
@@ -99,12 +100,8 @@ public class CustomerController {
 
         simpMessagingTemplate.convertAndSend("/topic/orders", savedOrder);  // Sends to Admin Subscribers
 
-        ResponseCookie jwtCookie = jwtTokenUtil.refreshToken((UserDetails) authentication.getPrincipal());
-
         return ResponseEntity
                 .ok()
-                .header(HttpHeaders.SET_COOKIE, jwtCookie.toString())
-                .contentType(MediaType.APPLICATION_JSON)
                 .body(responseBody);
 
     }
@@ -112,10 +109,9 @@ public class CustomerController {
 
     @GetMapping("/user/favourites")
     public ResponseEntity<Map<String, Object>> getFavourites() {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        String currentPrincipalName = authentication.getName();
+        UserDetails currentUser = (UserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
 
-        User user = userService.getUserByEmail(currentPrincipalName);
+        User user = userService.getUserById(currentUser.getUsername());
 
         List<Favourites> userFavourites = user.getFavourites();
 
@@ -129,7 +125,7 @@ public class CustomerController {
             simplifiedItem.put("name", fav.getMenuItem().getName());
             simplifiedItem.put("description", fav.getMenuItem().getDescription());
             simplifiedItem.put("price", fav.getMenuItem().getPrice());
-            simplifiedItem.put("imageUrl", s3Service.generatePreSignedUrl(fav.getMenuItem().getImageUrl()));
+            simplifiedItem.put("imageUrl", s3Service.generateSignedUrl(fav.getMenuItem().getImageUrl()));
 
             // Add simplified category with only id and name
             Map<String, Object> simplifiedCategory = new HashMap<>();
@@ -144,22 +140,18 @@ public class CustomerController {
         Map<String, Object> responseBody = new HashMap<>();
         responseBody.put("favourites", simplifiedMenuItems);
 
-        ResponseCookie jwtCookie = jwtTokenUtil.refreshToken((UserDetails) authentication.getPrincipal());
-
         return ResponseEntity
                 .ok()
-                .header(HttpHeaders.SET_COOKIE, jwtCookie.toString())
-                .contentType(MediaType.APPLICATION_JSON)
                 .body(responseBody);
 
     }
 
     @PostMapping("/user/favourites/{id}")
+    @Transactional
     public ResponseEntity<Map<String, String>> addFavourite(@PathVariable("id") Long menuItemId) {
-        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
-        String currentPrincipalName = authentication.getName();
+        UserDetails currentUser = (UserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal();
 
-        User user = userService.getUserByEmail(currentPrincipalName);
+        User user = userService.getUserById(currentUser.getUsername());
 
         Favourites newFavourite = new Favourites();
         newFavourite.setMenuItem(shopService.getMenuItemById(menuItemId));
@@ -170,12 +162,8 @@ public class CustomerController {
         responseBody.put("status", "success");
         responseBody.put("message", "Added Item to Favourites successfully");
 
-        ResponseCookie jwtCookie = jwtTokenUtil.refreshToken((UserDetails) authentication.getPrincipal());
-
         return ResponseEntity
                 .ok()
-                .header(HttpHeaders.SET_COOKIE, jwtCookie.toString())
-                .contentType(MediaType.APPLICATION_JSON)
                 .body(responseBody);
 
     }

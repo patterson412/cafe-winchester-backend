@@ -15,7 +15,7 @@ public class userDetailsConfig {
         JdbcUserDetailsManager jdbcUserDetailsManager = new JdbcUserDetailsManager(dataSource);
 
         jdbcUserDetailsManager.setUsersByUsernameQuery(
-                "select user_id, pw, active from members where user_id=?"
+                "select user_id, pw, active from users where user_id=?"
         );
 
         jdbcUserDetailsManager.setAuthoritiesByUsernameQuery(
@@ -24,19 +24,19 @@ public class userDetailsConfig {
 
         // Create/Update/Delete queries
         jdbcUserDetailsManager.setCreateUserSql(
-                "insert into members (user_id, pw, active) values (?,?,?)"
+                "insert into users (user_id, pw, active) values (?,?,?)"
         );
         jdbcUserDetailsManager.setCreateAuthoritySql(
                 "insert into roles (user_id, role) values (?,?)"
         );
         jdbcUserDetailsManager.setDeleteUserSql(
-                "delete from members where user_id = ?"
+                "delete from users where user_id = ?"
         );
         jdbcUserDetailsManager.setDeleteUserAuthoritiesSql(
                 "delete from roles where user_id = ?"
         );
         jdbcUserDetailsManager.setUpdateUserSql(
-                "update members set pw = ?, active = ? where user_id = ?"
+                "update users set pw = ?, active = ? where user_id = ?"
         );
 
         return jdbcUserDetailsManager;

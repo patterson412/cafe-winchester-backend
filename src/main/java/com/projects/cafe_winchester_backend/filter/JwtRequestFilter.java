@@ -26,19 +26,26 @@ public class JwtRequestFilter extends OncePerRequestFilter {
 
     private final UserDetailsManager userDetailsManager;
 
-    private static final String JWT_COOKIE_NAME = "jwt";
-
     public JwtRequestFilter(tokenUtil jwtTokenUtil, UserDetailsManager userDetailsManager) {
         this.jwtTokenUtil = jwtTokenUtil;
         this.userDetailsManager = userDetailsManager;
     }
 
     @Override
-    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain) throws ServletException, IOException {
-        String jwtToken = extractTokenFromCookie(request);
-        String username = null;
+    protected boolean shouldNotFilter(HttpServletRequest request) {
+        String path = request.getServletPath();
+        return path.startsWith("/api/auth/");
+    }
 
-        if (jwtToken != null) {
+    @Override
+    protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain chain) throws ServletException, IOException {
+        final String requestTokenheader = request.getHeader("Authorization");
+
+        String username = null;
+        String jwtToken = null;
+
+        if (requestTokenheader != null && requestTokenheader.startsWith("Bearer ")) {
+            jwtToken = requestTokenheader.substring(7);
             try {
                 username = jwtTokenUtil.getUsernameFromToken(jwtToken);
             } catch (IllegalArgumentException e) {
@@ -68,19 +75,6 @@ public class JwtRequestFilter extends OncePerRequestFilter {
             }
         }
         chain.doFilter(request, response);
-    }
-
-    private String extractTokenFromCookie(HttpServletRequest request) {
-        Cookie[] cookies = request.getCookies();
-        if (cookies != null) {
-            for (Cookie cookie : cookies) {
-                System.out.printf("Cookie Name: %s, Value: %s%n", cookie.getName(), cookie.getValue());
-                if (JWT_COOKIE_NAME.equals(cookie.getName())) {
-                    return cookie.getValue();
-                }
-            }
-        }
-        return null;
     }
 
     private void sendErrorResponse(HttpServletResponse response, int status, String message) throws IOException {

@@ -89,14 +89,7 @@ public class tokenUtil {
         }
     }
 
-    public ResponseCookie refreshToken(UserDetails userDetails) {
-        String token = generateToken(userDetails);
-        return ResponseCookie.from("jwt", token)
-                .httpOnly(true)
-                .secure(false)  // Set to true in production to use https
-                .path("/")
-                .maxAge(7 * 60 * 60) // 7 hours in seconds
-                .sameSite("Strict")
-                .build();
+    public String refreshToken(UserDetails userDetails) {
+        return generateToken(userDetails);
     }
 }

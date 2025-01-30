@@ -48,7 +48,7 @@ public class ShopService {
                 new NoSuchElementException("Menu Item not found with name: " + name));
     }
 
-    public Orders getLatestOrderOfUser(Long userId) {
+    public Orders getLatestOrderOfUser(String userId) {
         return orderDao.findFirstByUserUserIdOrderByOrderDateDesc(userId).orElseThrow(() ->
                 new NoSuchElementException("Order not found under User ID: " + userId));
     }
@@ -81,10 +81,19 @@ public class ShopService {
 
             if (menuItemDto.getNewImage() != null && !menuItemDto.getNewImage().isEmpty()) {
                 try {
+                    // Delete old image if exists
+                    if (menuItem.getImageUrl() != null && !menuItem.getImageUrl().trim().isEmpty()) s3Service.deleteFile(menuItem.getImageUrl());
+                    // Upload new image
                     String newImageUrl = s3Service.uploadFile(menuItemDto.getNewImage(), S3Service.ImageType.MENU_ITEM);
                     menuItem.setImageUrl(newImageUrl);
                 } catch (Exception e) {
                     throw new RuntimeException("Failed to upload image: " + e.getMessage());
+                }
+            } else {
+                if (menuItem.getImageUrl() != null && !menuItem.getImageUrl().trim().isEmpty()) {
+                    // If new image is null/empty and old image exists, delete old image
+                    s3Service.deleteFile(menuItem.getImageUrl());
+                    menuItem.setImageUrl(null);
                 }
             }
 
@@ -104,7 +113,7 @@ public class ShopService {
                                     itemDetails.put("id", item.getId());
                                     itemDetails.put("name", item.getName());
                                     itemDetails.put("imageUrl", item.getImageUrl() != null ?
-                                            s3Service.generatePreSignedUrl(item.getImageUrl()) :
+                                            s3Service.generateSignedUrl(item.getImageUrl()) :
                                             null);
                                     itemDetails.put("description", item.getDescription());
                                     itemDetails.put("price", item.getPrice());

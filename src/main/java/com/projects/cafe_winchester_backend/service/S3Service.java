@@ -1,46 +1,54 @@
 package com.projects.cafe_winchester_backend.service;
 
-import org.springframework.beans.factory.annotation.Autowired;
+import jakarta.annotation.PreDestroy;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.scheduling.annotation.Async;
+import org.springframework.cache.annotation.Cacheable;
 import org.springframework.stereotype.Service;
 import org.springframework.web.multipart.MultipartFile;
-import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
-import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
-import software.amazon.awssdk.regions.Region;
+import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;
 import software.amazon.awssdk.services.s3.model.*;
-import software.amazon.awssdk.core.sync.RequestBody;
-import software.amazon.awssdk.services.s3.presigner.S3Presigner;
-import software.amazon.awssdk.services.s3.presigner.model.GetObjectPresignRequest;
-import software.amazon.awssdk.services.s3.presigner.model.PresignedGetObjectRequest;
-import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequest;
+import software.amazon.awssdk.services.cloudfront.CloudFrontClient;
 
+import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.security.PrivateKey;
+import java.security.spec.PKCS8EncodedKeySpec;
 import java.time.Duration;
+import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Base64;
 import java.util.List;
 
 @Service
 public class S3Service {
     private final S3Client s3Client;
+    private final CloudFrontClient cloudFrontClient;
     private final String bucketName;
     private final String region;
+    private final String cloudFrontDomain;
+    private final String cloudFrontKeyPairId;
+    private final String cloudFrontPrivateKeyPath;
 
-    private final S3Presigner s3Presigner;
-
-    public S3Service(S3Client s3Client,
-                     S3Presigner s3Presigner,
-                     @Value("${aws.s3.bucket}") String bucketName,
-                     @Value("${aws.s3.region}") String region) {
+    public S3Service(
+            S3Client s3Client,
+            CloudFrontClient cloudFrontClient,
+            @Value("${aws.s3.bucket}") String bucketName,
+            @Value("${aws.s3.region}") String region,
+            @Value("${aws.cloudfront.domain}") String cloudFrontDomain,
+            @Value("${aws.cloudfront.key-pair-id}") String cloudFrontKeyPairId,
+            @Value("${aws.cloudfront.private-key-path}") String cloudFrontPrivateKeyPath) {
         this.s3Client = s3Client;
+        this.cloudFrontClient = cloudFrontClient;
         this.bucketName = bucketName;
         this.region = region;
-        this.s3Presigner = s3Presigner;
+        this.cloudFrontDomain = cloudFrontDomain;
+        this.cloudFrontKeyPairId = cloudFrontKeyPairId;
+        this.cloudFrontPrivateKeyPath = cloudFrontPrivateKeyPath;
     }
 
-
-    // For organizing objects in folders in S3
     public enum ImageType {
         MENU_ITEM("menu-items/"),
         SHOP("shop/"),
@@ -58,6 +66,12 @@ public class S3Service {
         }
     }
 
+    @PreDestroy
+    public void onShutdown() {
+        System.out.println("S3Service shutdown initiated...");
+        cleanupBucketFolders();
+        System.out.println("S3Service shutdown completed.");
+    }
 
     public String uploadFile(MultipartFile file, ImageType imageType) {
         if (file == null || file.isEmpty()) {
@@ -82,7 +96,7 @@ public class S3Service {
 
             s3Client.putObject(putObjectRequest,
                     RequestBody.fromInputStream(file.getInputStream(),
-                            file.getSize())); // AWS SDK can pre-allocate resources
+                            file.getSize()));
 
             return fileName;
         } catch (IOException e) {
@@ -90,22 +104,49 @@ public class S3Service {
         }
     }
 
-    public String generatePreSignedUrl(String objectKey) {
+    @Cacheable(
+            // The name of the cache in Redis where the URLs will be stored
+            value = "imageKeys",
 
-        GetObjectRequest objectRequest = GetObjectRequest.builder()
-                .bucket(bucketName)
-                .key(objectKey)
-                .build();
+            // Use the objectKey parameter as the cache key (e.g., "menu-items/photo1.jpg")
+            key = "#objectKey",
 
-        GetObjectPresignRequest presignRequest = GetObjectPresignRequest.builder()
-                .signatureDuration(Duration.ofMinutes(10))  // The URL will expire in 10 minutes.
-                .getObjectRequest(objectRequest)
-                .build();
+            // Only execute caching if objectKey is not null and not empty string
+            // This prevents unnecessary method execution for invalid inputs
+            condition = "#objectKey != null && #objectKey.length() > 0",
 
-        PresignedGetObjectRequest presignedRequest = s3Presigner.presignGetObject(presignRequest);
+            // Don't cache if the method returns null
+            // This prevents caching failed URL generations
+            unless = "#result == null"
+    )
+    public String generateSignedUrl(String objectKey) {
+        try {
+            // Read the private key file as binary for .der format
+            byte[] privateKeyBytes = Files.readAllBytes(Path.of(cloudFrontPrivateKeyPath));
 
-        return presignedRequest.url().toExternalForm();
+            // Create a private key specification directly from the DER bytes
+            PKCS8EncodedKeySpec keySpec = new PKCS8EncodedKeySpec(privateKeyBytes);
 
+            // Get a KeyFactory instance for RSA
+            java.security.KeyFactory keyFactory = java.security.KeyFactory.getInstance("RSA");
+
+            // Generate the private key
+            PrivateKey privateKey = keyFactory.generatePrivate(keySpec);
+
+            // Create a CloudFront signer
+            CloudFrontUrlSigner signer = new CloudFrontUrlSigner(cloudFrontKeyPairId, privateKey);
+
+            // Generate the signed URL (valid for 1 hour)
+            String resourcePath = "/" + objectKey;
+            Instant expirationTime = Instant.now().plus(Duration.ofHours(1));
+
+            return signer.generateSignedUrl(
+                    "https://" + cloudFrontDomain + resourcePath,
+                    expirationTime
+            );
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to generate signed URL: " + e.getMessage(), e);
+        }
     }
 
     public void deleteFile(String key) {
@@ -114,8 +155,7 @@ public class S3Service {
         }
 
         try {
-
-            // Check if file exists before deleting, as this returns object metadata without downloading the object
+            // Check if file exists before deleting
             HeadObjectRequest headObjectRequest = HeadObjectRequest.builder()
                     .bucket(bucketName)
                     .key(key)
@@ -167,7 +207,6 @@ public class S3Service {
 
             DeleteObjectsResponse response = s3Client.deleteObjects(deleteRequest);
 
-            // Check for any failed deletions
             if (!response.errors().isEmpty()) {
                 List<String> errorMessages = response.errors().stream()
                         .map(error -> error.key() + ": " + error.message())
@@ -181,14 +220,12 @@ public class S3Service {
 
     public void cleanupBucketFolders() {
         try {
-            // List all image type folders we want to clean
             List<String> foldersToClean = new ArrayList<>();
             for (ImageType imageType : ImageType.values()) {
                 foldersToClean.add(imageType.getPath());
             }
 
             for (String folder : foldersToClean) {
-                // List objects in the folder
                 ListObjectsV2Request listRequest = ListObjectsV2Request.builder()
                         .bucket(bucketName)
                         .prefix(folder)
@@ -199,51 +236,39 @@ public class S3Service {
                     listResponse = s3Client.listObjectsV2(listRequest);
 
                     if (!listResponse.contents().isEmpty()) {
-                        // Prepare batch delete request
                         List<ObjectIdentifier> objectsToDelete = listResponse.contents().stream()
                                 .map(s3Object -> ObjectIdentifier.builder()
                                         .key(s3Object.key())
                                         .build())
                                 .toList();
 
-                        // Delete the batch of objects
                         DeleteObjectsRequest deleteRequest = DeleteObjectsRequest.builder()
                                 .bucket(bucketName)
                                 .delete(Delete.builder()
                                         .objects(objectsToDelete)
-                                        .quiet(false) // Set to true if deletion details are not needed
+                                        .quiet(false)
                                         .build())
                                 .build();
 
                         DeleteObjectsResponse deleteResponse = s3Client.deleteObjects(deleteRequest);
 
-                        // Check for errors
                         if (!deleteResponse.errors().isEmpty()) {
                             List<String> errorMessages = deleteResponse.errors().stream()
                                     .map(error -> error.key() + ": " + error.message())
                                     .toList();
                             System.err.println("Failed to delete some objects in folder " + folder + ": "
                                     + String.join(", ", errorMessages));
-                        } else {
-                            System.out.println("Successfully deleted " + objectsToDelete.size()
-                                    + " objects from folder: " + folder);
                         }
-                    } else {
-                        System.out.println("No objects found in folder: " + folder);
                     }
 
-                    // Update the list request with the continuation token to get the next batch
                     listRequest = ListObjectsV2Request.builder()
                             .bucket(bucketName)
                             .prefix(folder)
-                            .continuationToken(listResponse.nextContinuationToken())    // We do this because the objects are returned paginated, hence we check if there are more objects using the token AWS sends in the response if there are more objects, or else the token is null
+                            .continuationToken(listResponse.nextContinuationToken())
                             .build();
 
-                } while (listResponse.isTruncated()); // Continue if there are more objects.
+                } while (listResponse.isTruncated());
             }
-
-            System.out.println("Bucket cleanup completed successfully");
-
         } catch (S3Exception e) {
             throw new RuntimeException("Failed to cleanup S3 bucket folders: " + e.getMessage(), e);
         }
@@ -254,16 +279,58 @@ public class S3Service {
             return System.currentTimeMillis() + "_file";
         }
         return System.currentTimeMillis() + "_" + originalFilename.replaceAll("[^a-zA-Z0-9.-]", "_");
-        /*
-        Replaces any character that is NOT (that's what ^ means):
+    }
 
-        a-z: lowercase letters
-        A-Z: uppercase letters
-        0-9: numbers
-        .: period
-        -: hyphen
+    // Helper class for CloudFront URL signing
+    private static class CloudFrontUrlSigner {
+        private final String keyPairId;
+        private final PrivateKey privateKey;
 
-        Replaces these special characters with underscore _
-         */
+        public CloudFrontUrlSigner(String keyPairId, PrivateKey privateKey) {
+            this.keyPairId = keyPairId;
+            this.privateKey = privateKey;
+        }
+
+        public String generateSignedUrl(String url, Instant expiration) {
+            try {
+                String policy = createPolicy(url, expiration);
+                // base64 encode the policy and replace special characters as per AWS specs
+                String encodedPolicy = Base64.getEncoder().encodeToString(policy.getBytes())
+                        .replace('+', '-')
+                        .replace('=', '_')
+                        .replace('/', '~');
+
+                // Create signature
+                java.security.Signature signer = java.security.Signature.getInstance("SHA1withRSA");
+                signer.initSign(privateKey);
+                signer.update(policy.getBytes());
+                String signature = Base64.getEncoder().encodeToString(signer.sign())
+                        .replace('+', '-')
+                        .replace('=', '_')
+                        .replace('/', '~');
+
+                return url +
+                        "?Policy=" + encodedPolicy +
+                        "&Signature=" + signature +
+                        "&Key-Pair-Id=" + keyPairId;
+            } catch (Exception e) {
+                throw new RuntimeException("Failed to generate signed URL", e);
+            }
+        }
+
+        private String createPolicy(String resourceUrl, Instant expiration) {
+            return String.format("""
+                {
+                    "Statement": [{
+                        "Resource": "%s",
+                        "Condition": {
+                            "DateLessThan": {
+                                "AWS:EpochTime": %d
+                            }
+                        }
+                    }]
+                }
+                """, resourceUrl, expiration.getEpochSecond());
+        }
     }
 }

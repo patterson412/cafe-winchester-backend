@@ -5,26 +5,17 @@ import com.projects.cafe_winchester_backend.dto.MenuItemDto;
 import com.projects.cafe_winchester_backend.entity.MenuCategory;
 import com.projects.cafe_winchester_backend.entity.MenuItem;
 import com.projects.cafe_winchester_backend.entity.Orders;
-import com.projects.cafe_winchester_backend.repository.MenuItemDao;
 import com.projects.cafe_winchester_backend.service.S3Service;
 import com.projects.cafe_winchester_backend.service.ShopService;
-import com.projects.cafe_winchester_backend.service.UserManagementService;
 import com.projects.cafe_winchester_backend.service.UserService;
 import com.projects.cafe_winchester_backend.util.tokenUtil;
+import jakarta.transaction.Transactional;
 import jakarta.validation.Valid;
-import org.apache.coyote.Response;
-import org.springframework.http.HttpHeaders;
-import org.springframework.http.MediaType;
-import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
-import org.springframework.security.core.context.SecurityContextHolder;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
-import software.amazon.awssdk.services.s3.presigner.model.PresignedPutObjectRequest;
 
 import java.util.*;
-import java.util.stream.Collectors;
 
 @RestController
 @RequestMapping("/api/manage")
@@ -33,16 +24,14 @@ public class AdminController {
     private final S3Service s3Service;
     private final UserService userService;
     private final ShopService shopService;
-    private final UserManagementService userManagementService;
     private final tokenUtil jwtTokenUtil;
 
     private final SimpMessagingTemplate simpMessagingTemplate;
 
-    public AdminController(S3Service s3Service, UserService userService, ShopService shopService, UserManagementService userManagementService, tokenUtil jwtTokenUtil, SimpMessagingTemplate simpMessagingTemplate) {
+    public AdminController(S3Service s3Service, UserService userService, ShopService shopService, tokenUtil jwtTokenUtil, SimpMessagingTemplate simpMessagingTemplate) {
         this.s3Service = s3Service;
         this.userService = userService;
         this.shopService = shopService;
-        this.userManagementService = userManagementService;
         this.jwtTokenUtil = jwtTokenUtil;
         this.simpMessagingTemplate = simpMessagingTemplate;
     }
@@ -51,12 +40,8 @@ public class AdminController {
     public ResponseEntity<MenuItem> updateMenuItem(@PathVariable("id") Long itemId, @Valid @ModelAttribute MenuItemDto menuItemDto) {
         MenuItem updatedMenuItem = shopService.updateMenuItem(itemId, menuItemDto);
 
-        ResponseCookie jwtCookie = jwtTokenUtil.refreshToken((UserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal());
-
         return ResponseEntity
                 .ok()
-                .header(HttpHeaders.SET_COOKIE, jwtCookie.toString())
-                .contentType(MediaType.APPLICATION_JSON)
                 .body(updatedMenuItem);
     }
 
@@ -74,7 +59,7 @@ public class AdminController {
                                 simplifiedOrderItem.put("menuItem", Map.of(
                                         "id", orderItem.getItem().getId(),
                                         "name", orderItem.getItem().getName(),
-                                        "imageUrl", s3Service.generatePreSignedUrl(orderItem.getItem().getImageUrl()),
+                                        "imageUrl", s3Service.generateSignedUrl(orderItem.getItem().getImageUrl()),
                                         "description", orderItem.getItem().getDescription(),
                                         "price", orderItem.getItem().getPrice(),
                                         "category", Map.of(
@@ -107,12 +92,8 @@ public class AdminController {
                 })
                 .toList();
 
-        ResponseCookie jwtCookie = jwtTokenUtil.refreshToken((UserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal());
-
         return ResponseEntity
                 .ok()
-                .header(HttpHeaders.SET_COOKIE, jwtCookie.toString())
-                .contentType(MediaType.APPLICATION_JSON)
                 .body(simplifiedCurrentOrders);
     }
 
@@ -130,7 +111,7 @@ public class AdminController {
                                 simplifiedOrderItem.put("menuItem", Map.of(
                                         "id", orderItem.getItem().getId(),
                                         "name", orderItem.getItem().getName(),
-                                        "imageUrl", s3Service.generatePreSignedUrl(orderItem.getItem().getImageUrl()),
+                                        "imageUrl", s3Service.generateSignedUrl(orderItem.getItem().getImageUrl()),
                                         "description", orderItem.getItem().getDescription(),
                                         "price", orderItem.getItem().getPrice(),
                                         "category", Map.of(
@@ -163,12 +144,8 @@ public class AdminController {
                 })
                 .toList();
 
-        ResponseCookie jwtCookie = jwtTokenUtil.refreshToken((UserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal());
-
         return ResponseEntity
                 .ok()
-                .header(HttpHeaders.SET_COOKIE, jwtCookie.toString())
-                .contentType(MediaType.APPLICATION_JSON)
                 .body(simplifiedAllOrders);
     }
 
@@ -178,12 +155,8 @@ public class AdminController {
     public ResponseEntity<?> getAllCategoriesOnly() {
         List<Map<String, Object>> categories = shopService.getAllCategoriesNamesAndIdOnly();
 
-        ResponseCookie jwtCookie = jwtTokenUtil.refreshToken((UserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal());
-
         return ResponseEntity
                 .ok()
-                .header(HttpHeaders.SET_COOKIE, jwtCookie.toString())
-                .contentType(MediaType.APPLICATION_JSON)
                 .body(categories);
     }
     /* Sample JSON output for above getAllCategoriesOnly
@@ -208,12 +181,8 @@ public class AdminController {
     public ResponseEntity<MenuItem> addMenuItem(@Valid @ModelAttribute AddMenuItemDto addMenuItemDto) {    // @ModelAttribute is used if request data is coming in formData
         MenuItem newMenuItem = shopService.addMenuItem(addMenuItemDto);
 
-        ResponseCookie jwtCookie = jwtTokenUtil.refreshToken((UserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal());
-
         return ResponseEntity
                 .ok()
-                .header(HttpHeaders.SET_COOKIE, jwtCookie.toString())
-                .contentType(MediaType.APPLICATION_JSON)
                 .body(newMenuItem);
     }
 
@@ -225,13 +194,8 @@ public class AdminController {
         simplifiedCategory.put("id", newMenuCategory.getId());
         simplifiedCategory.put("name", newMenuCategory.getName());
 
-
-        ResponseCookie jwtCookie = jwtTokenUtil.refreshToken((UserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal());
-
         return ResponseEntity
                 .ok()
-                .header(HttpHeaders.SET_COOKIE, jwtCookie.toString())
-                .contentType(MediaType.APPLICATION_JSON)
                 .body(simplifiedCategory);
     }
 
@@ -244,12 +208,8 @@ public class AdminController {
         responseBody.put("order", order);
         simpMessagingTemplate.convertAndSendToUser(String.valueOf(order.getUser().getUserId()), "/queue/order-notifications", responseBody);
 
-        ResponseCookie jwtCookie = jwtTokenUtil.refreshToken((UserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal());
-
         return ResponseEntity
                 .ok()
-                .header(HttpHeaders.SET_COOKIE, jwtCookie.toString())
-                .contentType(MediaType.APPLICATION_JSON)
                 .body(responseBody);
     }
 
@@ -262,12 +222,8 @@ public class AdminController {
         responseBody.put("order", order);
         simpMessagingTemplate.convertAndSendToUser(String.valueOf(order.getUser().getUserId()), "/queue/order-notifications", responseBody);
 
-        ResponseCookie jwtCookie = jwtTokenUtil.refreshToken((UserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal());
-
         return ResponseEntity
                 .ok()
-                .header(HttpHeaders.SET_COOKIE, jwtCookie.toString())
-                .contentType(MediaType.APPLICATION_JSON)
                 .body(responseBody);
     }
 
@@ -281,12 +237,8 @@ public class AdminController {
 
         simpMessagingTemplate.convertAndSendToUser(String.valueOf(order.getUser().getUserId()), "/queue/order-notifications", responseBody);
 
-        ResponseCookie jwtCookie = jwtTokenUtil.refreshToken((UserDetails) SecurityContextHolder.getContext().getAuthentication().getPrincipal());
-
         return ResponseEntity
                 .ok()
-                .header(HttpHeaders.SET_COOKIE, jwtCookie.toString())
-                .contentType(MediaType.APPLICATION_JSON)
                 .body(responseBody);
     }
 
